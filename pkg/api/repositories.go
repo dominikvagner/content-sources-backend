@@ -163,3 +163,16 @@ func (r *RepositoryCollectionResponse) SetMetadata(meta ResponseMetadata, links 
 func (r *RepositoryResponse) Introspectable() bool {
 	return r.Origin != config.OriginUpload
 }
+
+type RepositoryUrlResponse string
+
+type RepositoryUrlCollectionResponse struct {
+	Data  []RepositoryUrlResponse `json:"data"`
+	Meta  ResponseMetadata
+	Links Links
+}
+
+func (r *RepositoryUrlCollectionResponse) SetMetadata(meta ResponseMetadata, links Links) {
+	r.Meta = meta
+	r.Links = links
+}

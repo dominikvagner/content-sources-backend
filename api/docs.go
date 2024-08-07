@@ -652,6 +652,68 @@ const docTemplate = `{
                 }
             }
         },
+        "/repositories/urls/": {
+            "get": {
+                "description": "This operation enables users to retrieve a list urls of all repositories.",
+                "consumes": [
+                    "application/json"
+                ],
+                "produces": [
+                    "application/json"
+                ],
+                "tags": [
+                    "repositoriesUrls"
+                ],
+                "summary": "List URLs of all repositories",
+                "operationId": "listRepositoriesUrls",
+                "parameters": [
+                    {
+                        "type": "integer",
+                        "description": "Starting point for retrieving a subset of results. Determines how many items to skip from the beginning of the result set. Default value:` + "`" + `0` + "`" + `.",
+                        "name": "offset",
+                        "in": "query"
+                    },
+                    {
+                        "type": "integer",
+                        "description": "Number of items to include in response. Use it to control the number of items, particularly when dealing with large datasets. Default value: ` + "`" + `100` + "`" + `.",
+                        "name": "limit",
+                        "in": "query"
+                    }
+                ],
+                "responses": {
+                    "200": {
+                        "description": "OK",
+                        "schema": {
+                            "$ref": "#/definitions/api.RepositoryUrlCollectionResponse"
+                        }
+                    },
+                    "400": {
+                        "description": "Bad Request",
+                        "schema": {
+                            "$ref": "#/definitions/errors.ErrorResponse"
+                        }
+                    },
+                    "401": {
+                        "description": "Unauthorized",
+                        "schema": {
+                            "$ref": "#/definitions/errors.ErrorResponse"
+                        }
+                    },
+                    "404": {
+                        "description": "Not Found",
+                        "schema": {
+                            "$ref": "#/definitions/errors.ErrorResponse"
+                        }
+                    },
+                    "500": {
+                        "description": "Internal Server Error",
+                        "schema": {
+                            "$ref": "#/definitions/errors.ErrorResponse"
+                        }
+                    }
+                }
+            }
+        },
         "/repositories/{uuid}": {
             "get": {
                 "description": "Get repository information.",
@@ -3582,6 +3644,23 @@ const docTemplate = `{
                 "url": {
                     "description": "URL of the remote yum repository",
                     "type": "string"
+                }
+            }
+        },
+        "api.RepositoryUrlCollectionResponse": {
+            "type": "object",
+            "properties": {
+                "data": {
+                    "type": "array",
+                    "items": {
+                        "type": "string"
+                    }
+                },
+                "links": {
+                    "$ref": "#/definitions/api.Links"
+                },
+                "meta": {
+                    "$ref": "#/definitions/api.ResponseMetadata"
                 }
             }
         },

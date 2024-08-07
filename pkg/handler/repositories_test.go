@@ -334,6 +334,74 @@ func (suite *ReposSuite) TestListDaoError() {
 	assert.Equal(t, http.StatusInternalServerError, code)
 }
 
+func createRepoUrlCollection(size, limit, offset int) api.RepositoryUrlCollectionResponse {
+	urls := make([]api.RepositoryUrlResponse, size)
+	for i := 0; i < size; i++ {
+		url := fmt.Sprintf("http://repo-%d.com", i)
+		urls[i] = api.RepositoryUrlResponse(url)
+	}
+
+	collection := api.RepositoryUrlCollectionResponse{
+		Data: urls,
+	}
+	params := fmt.Sprintf("?offset=%d&limit=%d}", limit, offset)
+	setCollectionResponseMetadata(&collection, getTestContext(params), int64(size))
+	return collection
+}
+
+func (suite *ReposSuite) TestListUrls() {
+	t := suite.T()
+
+	size := 2
+	collection := createRepoUrlCollection(size, DefaultLimit, DefaultOffset)
+	paginationData := api.PaginationData{Limit: DefaultLimit}
+	suite.reg.Repository.On("ListUrls", test.MockCtx(), paginationData).Return(collection, int64(size), nil)
+
+	path := fmt.Sprintf("%s/repositories/urls/?limit=%d", api.FullRootPath(), DefaultLimit)
+	req := httptest.NewRequest(http.MethodGet, path, nil)
+	req.Header.Set(api.IdentityHeader, test_handler.EncodedIdentity(t))
+
+	code, body, err := suite.serveRepositoriesRouter(req)
+	assert.Nil(t, err)
+
+	response := api.RepositoryUrlCollectionResponse{}
+	err = json.Unmarshal(body, &response)
+	assert.Nil(t, err)
+	assert.Equal(t, http.StatusOK, code)
+	assert.Equal(t, DefaultLimit, response.Meta.Limit)
+	assert.Equal(t, DefaultOffset, response.Meta.Offset)
+	assert.Equal(t, int64(size), response.Meta.Count)
+	assert.Equal(t, size, len(response.Data))
+	assert.Equal(t, collection.Data[0], response.Data[0])
+	assert.Equal(t, collection.Data[1], response.Data[1])
+}
+
+func (suite *ReposSuite) TestListUrlsNoRepositories() {
+	t := suite.T()
+
+	size := 0
+	collection := createRepoUrlCollection(size, DefaultLimit, DefaultOffset)
+	paginationData := api.PaginationData{Limit: DefaultLimit}
+	suite.reg.Repository.On("ListUrls", test.MockCtx(), paginationData).Return(collection, int64(size), nil)
+
+	path := fmt.Sprintf("%s/repositories/urls", api.FullRootPath())
+	req := httptest.NewRequest(http.MethodGet, path, nil)
+	req.Header.Set(api.IdentityHeader, test_handler.EncodedIdentity(t))
+
+	code, body, err := suite.serveRepositoriesRouter(req)
+	assert.Nil(t, err)
+
+	response := api.RepositoryUrlCollectionResponse{}
+	err = json.Unmarshal(body, &response)
+	assert.Nil(t, err)
+	assert.Equal(t, http.StatusOK, code)
+	assert.Equal(t, DefaultLimit, response.Meta.Limit)
+	assert.Equal(t, DefaultOffset, response.Meta.Offset)
+	assert.Equal(t, int64(size), response.Meta.Count)
+	assert.Equal(t, size, len(response.Data))
+	assert.Empty(t, response.Data)
+}
+
 func (suite *ReposSuite) TestFetch() {
 	t := suite.T()
 

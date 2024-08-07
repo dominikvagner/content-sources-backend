@@ -141,6 +141,30 @@ func (p repositoryDaoImpl) ListPublic(ctx context.Context, paginationData api.Pa
 	return api.PublicRepositoryCollectionResponse{Data: repos}, totalRepos, nil
 }
 
+func (r repositoryDaoImpl) ListUrls(ctx context.Context, paginationData api.PaginationData) (api.RepositoryUrlCollectionResponse, int64, error) {
+	var totalUrls int64
+	var dbRepos []models.Repository
+
+	db := r.db.WithContext(ctx)
+
+	db.Model(&dbRepos).Count(&totalUrls)
+	if db.Error != nil {
+		return api.RepositoryUrlCollectionResponse{}, totalUrls, db.Error
+	}
+
+	db.Limit(paginationData.Limit).Offset(paginationData.Offset).Find(&dbRepos)
+	if db.Error != nil {
+		return api.RepositoryUrlCollectionResponse{}, totalUrls, db.Error
+	}
+
+	urls := make([]api.RepositoryUrlResponse, len(dbRepos))
+	for i := 0; i < len(dbRepos); i++ {
+		repoModelToRepoUrlApi(dbRepos[i], &urls[i])
+	}
+
+	return api.RepositoryUrlCollectionResponse{Data: urls}, totalUrls, nil
+}
+
 func (p repositoryDaoImpl) Update(ctx context.Context, repoIn RepositoryUpdate) error {
 	var dbRepo models.Repository
 
@@ -246,4 +270,8 @@ func repoModelToPublicRepoApi(model models.Repository, resp *api.PublicRepositor
 	if model.LastIntrospectionError != nil {
 		resp.LastIntrospectionError = *model.LastIntrospectionError
 	}
+}
+
+func repoModelToRepoUrlApi(model models.Repository, resp *api.RepositoryUrlResponse) {
+	*resp = api.RepositoryUrlResponse(model.URL)
 }

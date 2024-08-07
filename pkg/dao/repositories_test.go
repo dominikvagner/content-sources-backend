@@ -181,6 +181,49 @@ func (s *RepositorySuite) TestListPublicNoRepositories() {
 	tx.RollbackTo("testlistpublic")
 }
 
+func (s *RepositorySuite) TestListUrls() {
+	t := s.T()
+	tx := s.tx
+	tx.SavePoint("testlisturls")
+	tx.Exec(testDeleteTablesQuery)
+
+	dao := GetRepositoryDao(s.tx)
+	pageData := api.GetDefaultPaginationData()
+
+	err := tx.Create(s.repo).Error
+	require.NoError(t, err)
+	err = tx.Create(s.repoPrivate).Error
+	require.NoError(t, err)
+
+	urls, totalUrls, err := dao.ListUrls(context.Background(), pageData)
+
+	assert.NoError(t, err)
+	assert.Len(t, urls.Data, 2)
+	assert.Equal(t, int64(2), totalUrls)
+	assert.Contains(t, urls.Data, api.RepositoryUrlResponse(s.repo.URL))
+	assert.Contains(t, urls.Data, api.RepositoryUrlResponse(s.repoPrivate.URL))
+
+	tx.RollbackTo("testlisturls")
+}
+
+func (s *RepositorySuite) TestListUrlsNoRepositories() {
+	t := s.T()
+
+	tx := s.tx
+	tx.SavePoint("testlisturls")
+	tx.Exec(testDeleteTablesQuery)
+
+	dao := GetRepositoryDao(tx)
+	pageData := api.GetDefaultPaginationData()
+
+	repos, totalRepos, err := dao.ListUrls(context.Background(), pageData)
+	assert.NoError(t, err)
+	assert.Len(t, repos.Data, 0)
+	assert.Equal(t, int64(0), totalRepos)
+
+	tx.RollbackTo("testlisturls")
+}
+
 func (s *RepositorySuite) TestListPageLimit() {
 	tx := s.tx
 	t := s.T()

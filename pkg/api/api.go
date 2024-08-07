@@ -79,3 +79,10 @@ func FullRootPath() string {
 func MajorRootPath() string {
 	return filepath.Join(RootPrefix(), "v"+ApiVersionMajor)
 }
+
+func GetDefaultPaginationData() PaginationData {
+	return PaginationData{
+		Limit:  100,
+		Offset: 0,
+	}
+}

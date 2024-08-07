@@ -136,6 +136,41 @@ func (_m *MockRepositoryDao) ListPublic(ctx context.Context, paginationData api.
 	return r0, r1, r2
 }
 
+// ListUrls provides a mock function with given fields: ctx, paginationData
+func (_m *MockRepositoryDao) ListUrls(ctx context.Context, paginationData api.PaginationData) (api.RepositoryUrlCollectionResponse, int64, error) {
+	ret := _m.Called(ctx, paginationData)
+
+	if len(ret) == 0 {
+		panic("no return value specified for ListUrls")
+	}
+
+	var r0 api.RepositoryUrlCollectionResponse
+	var r1 int64
+	var r2 error
+	if rf, ok := ret.Get(0).(func(context.Context, api.PaginationData) (api.RepositoryUrlCollectionResponse, int64, error)); ok {
+		return rf(ctx, paginationData)
+	}
+	if rf, ok := ret.Get(0).(func(context.Context, api.PaginationData) api.RepositoryUrlCollectionResponse); ok {
+		r0 = rf(ctx, paginationData)
+	} else {
+		r0 = ret.Get(0).(api.RepositoryUrlCollectionResponse)
+	}
+
+	if rf, ok := ret.Get(1).(func(context.Context, api.PaginationData) int64); ok {
+		r1 = rf(ctx, paginationData)
+	} else {
+		r1 = ret.Get(1).(int64)
+	}
+
+	if rf, ok := ret.Get(2).(func(context.Context, api.PaginationData) error); ok {
+		r2 = rf(ctx, paginationData)
+	} else {
+		r2 = ret.Error(2)
+	}
+
+	return r0, r1, r2
+}
+
 // OrphanCleanup provides a mock function with given fields: ctx
 func (_m *MockRepositoryDao) OrphanCleanup(ctx context.Context) error {
 	ret := _m.Called(ctx)

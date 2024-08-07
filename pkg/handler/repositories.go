@@ -44,6 +44,7 @@ func RegisterRepositoryRoutes(engine *echo.Group, daoReg *dao.DaoRegistry,
 	}
 
 	addRepoRoute(engine, http.MethodGet, "/repositories/", rh.listRepositories, rbac.RbacVerbRead)
+	addRepoRoute(engine, http.MethodGet, "/repositories/urls/", rh.listRepositoriesUrls, rbac.RbacVerbRead)
 	addRepoRoute(engine, http.MethodGet, "/repositories/:uuid", rh.fetch, rbac.RbacVerbRead)
 	addRepoRoute(engine, http.MethodPut, "/repositories/:uuid", rh.fullUpdate, rbac.RbacVerbWrite)
 	addRepoRoute(engine, http.MethodPatch, "/repositories/:uuid", rh.partialUpdate, rbac.RbacVerbWrite)
@@ -100,6 +101,34 @@ func (rh *RepositoryHandler) listRepositories(c echo.Context) error {
 	}
 
 	return c.JSON(200, setCollectionResponseMetadata(&repos, c, totalRepos))
+}
+
+// ListRepositoriesUrls godoc
+// @Summary      List URLs of all repositories
+// @ID           listRepositoriesUrls
+// @Description  This operation enables users to retrieve a list urls of all repositories.
+// @Tags         repositoriesUrls
+// @Param		 offset query int false "Starting point for retrieving a subset of results. Determines how many items to skip from the beginning of the result set. Default value:`0`."
+// @Param		 limit query int false "Number of items to include in response. Use it to control the number of items, particularly when dealing with large datasets. Default value: `100`."
+// @Accept       json
+// @Produce      json
+// @Success      200 {object} api.RepositoryUrlCollectionResponse
+// @Failure      400 {object} ce.ErrorResponse
+// @Failure      401 {object} ce.ErrorResponse
+// @Failure      404 {object} ce.ErrorResponse
+// @Failure      500 {object} ce.ErrorResponse
+// @Router       /repositories/urls/ [get]
+func (rh *RepositoryHandler) listRepositoriesUrls(c echo.Context) error {
+	_, orgID := getAccountIdOrgId(c)
+	c.Logger().Infof("org_id: %s", orgID)
+	pageData := ParsePagination(c)
+
+	urls, totalUrls, err := rh.DaoRegistry.Repository.ListUrls(c.Request().Context(), pageData)
+	if err != nil {
+		return ce.NewErrorResponse(ce.HttpCodeForDaoError(err), "Error listing urls of repositories", err.Error())
+	}
+
+	return c.JSON(http.StatusOK, setCollectionResponseMetadata(&urls, c, totalUrls))
 }
 
 // CreateRepository godoc
