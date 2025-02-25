@@ -8,6 +8,9 @@ import (
 	"math/rand"
 	"net/http"
 	"net/http/httputil"
+	"os"
+	"os/exec"
+	"slices"
 	"testing"
 	"time"
 
@@ -178,6 +181,48 @@ func (s *SnapshotSuite) TestSnapshot() {
 	assert.Nil(s.T(), err)
 	require.NotNil(s.T(), environment)
 	assert.Empty(s.T(), environment.GetEnvironmentContent())
+}
+
+func (s *SnapshotSuite) TestSnapshotCommand() {
+	s.dao = dao.GetDaoRegistry(db.DB)
+
+	// Set up the repository
+	accountId := uuid2.NewString()
+	repo, err := s.dao.RepositoryConfig.Create(s.ctx, api.RepositoryRequest{
+		Name:      utils.Ptr(uuid2.NewString()),
+		URL:       utils.Ptr("https://content-services.github.io/fixtures/yum/comps-modules/v1/"),
+		AccountID: utils.Ptr(accountId),
+		OrgID:     utils.Ptr(accountId),
+	})
+	assert.NoError(s.T(), err)
+	repoUuid, err := uuid2.Parse(repo.RepositoryUUID)
+	assert.NoError(s.T(), err)
+
+	// Run the 'snapshot' command for this repo
+	time.Sleep(3 * time.Second)
+	cwd, err := os.Getwd()
+	assert.NoError(s.T(), err)
+	path := fmt.Sprintf("%s/../../cmd/external-repos/main.go", cwd)
+	base := []string{"run", path, "snapshot", "--force", repo.URL[:len(repo.URL)-1]}
+	cmd := exec.Command("go", base...)
+	err = cmd.Run()
+	assert.NoError(s.T(), err)
+
+	// Get tasks
+	time.Sleep(3 * time.Second)
+	taskCollection, _, err := s.dao.TaskInfo.List(s.ctx, accountId, api.PaginationData{Limit: -1}, api.TaskInfoFilterData{RepoConfigUUID: repoUuid.String()})
+	assert.NoError(s.T(), err)
+	assert.NotEmpty(s.T(), taskCollection)
+	assert.Len(s.T(), taskCollection.Data, 3)
+	assert.True(s.T(), slices.ContainsFunc(taskCollection.Data, func(tir api.TaskInfoResponse) bool {
+		return tir.Typename == config.IntrospectTask
+	}))
+	assert.True(s.T(), slices.ContainsFunc(taskCollection.Data, func(tir api.TaskInfoResponse) bool {
+		return tir.Typename == config.RepositorySnapshotTask
+	}))
+	assert.True(s.T(), slices.ContainsFunc(taskCollection.Data, func(tir api.TaskInfoResponse) bool {
+		return tir.Typename == config.UpdateLatestSnapshotTask
+	}))
 }
 
 type loggingTransport struct{}
