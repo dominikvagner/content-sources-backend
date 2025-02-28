@@ -11,6 +11,7 @@ type PulpGlobalClient interface {
 	// Domains
 	LookupOrCreateDomain(ctx context.Context, name string) (string, error)
 	LookupDomain(ctx context.Context, name string) (string, error)
+	UpdateDomain(ctx context.Context, pulpHref string, domainPartial zest.PatchedDomain) error
 	UpdateDomainIfNeeded(ctx context.Context, name string) error
 
 	// Tasks
@@ -75,6 +76,7 @@ type PulpClient interface {
 	// Domains
 	LookupOrCreateDomain(ctx context.Context, name string) (string, error)
 	LookupDomain(ctx context.Context, name string) (string, error)
+	UpdateDomain(ctx context.Context, pulpHref string, domainPartial zest.PatchedDomain) error
 	UpdateDomainIfNeeded(ctx context.Context, name string) error
 
 	// Status

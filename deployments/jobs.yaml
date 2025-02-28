@@ -53,3 +53,13 @@ objects:
     appName: content-sources-backend
     jobs:
       - cleanup-missing-domains
+- apiVersion: cloud.redhat.com/v1alpha1
+  kind: ClowdJobInvocation
+  metadata:
+    labels:
+      app: content-sources-backend
+    name: update-domain-description-2024-12-03
+  spec:
+    appName: content-sources-backend
+    jobs:
+      - update-domain-description
