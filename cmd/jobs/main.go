@@ -19,6 +19,7 @@ func loadJobs() map[string]jobFunc {
 		"create-latest-distributions": jobs.CreateLatestDistributions,
 		"transform-pulp-logs":         jobs.TransformPulpLogs,
 		"cleanup-missing-domains":     jobs.CleanupMissingDomains,
+		"update-domain-description":   jobs.UpdateDomainDescription,
 	}
 }
 

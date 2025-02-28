@@ -1040,6 +1040,24 @@ func (_m *MockPulpClient) SyncRpmRepository(ctx context.Context, rpmRpmRepositor
 	return r0, r1
 }
 
+// UpdateDomain provides a mock function with given fields: ctx, pulpHref, domainPartial
+func (_m *MockPulpClient) UpdateDomain(ctx context.Context, pulpHref string, domainPartial zest.PatchedDomain) error {
+	ret := _m.Called(ctx, pulpHref, domainPartial)
+
+	if len(ret) == 0 {
+		panic("no return value specified for UpdateDomain")
+	}
+
+	var r0 error
+	if rf, ok := ret.Get(0).(func(context.Context, string, zest.PatchedDomain) error); ok {
+		r0 = rf(ctx, pulpHref, domainPartial)
+	} else {
+		r0 = ret.Error(0)
+	}
+
+	return r0
+}
+
 // UpdateDomainIfNeeded provides a mock function with given fields: ctx, name
 func (_m *MockPulpClient) UpdateDomainIfNeeded(ctx context.Context, name string) error {
 	ret := _m.Called(ctx, name)
@@ -1176,7 +1194,8 @@ func (_m *MockPulpClient) WithDomain(domainName string) PulpClient {
 func NewMockPulpClient(t interface {
 	mock.TestingT
 	Cleanup(func())
-}) *MockPulpClient {
+},
+) *MockPulpClient {
 	mock := &MockPulpClient{}
 	mock.Mock.Test(t)
 
