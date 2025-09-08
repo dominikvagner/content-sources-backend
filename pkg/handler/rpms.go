@@ -54,7 +54,40 @@ func (rh *RpmHandler) searchRpmByName(c echo.Context) error {
 	}
 	preprocessInput(&dataInput)
 
-	apiResponse, err := rh.Dao.Rpm.Search(c.Request().Context(), orgId, dataInput)
+	var apiResponse []api.SearchRpmResponse
+	var err error
+	if dataInput.Date.IsZero() {
+		apiResponse, err = rh.Dao.Rpm.Search(c.Request().Context(), orgId, dataInput)
+	} else {
+		err = CheckSnapshotAccessible(c.Request().Context())
+		if err != nil {
+			return err
+		}
+
+		repos, err := rh.Dao.RepositoryConfig.List(c.Request().Context(), orgId, api.PaginationData{DefaultLimit}, filterData api.FilterData)
+
+		snapshotsResp, err := rh.Dao.Snapshot.FetchSnapshotsByDateAndRepository(c.Request().Context(), orgId, api.ListSnapshotByDateRequest{
+			RepositoryUUIDS: dataInput.UUIDs,
+			Date:            dataInput.Date,
+		})
+		if err != nil {
+			return ce.NewErrorResponse(ce.HttpCodeForDaoError(err), "Error fetching snapshots", err.Error())
+		}
+
+		var snapshotUUIDs []string
+		for _, s := range snapshotsResp.Data {
+			if s.Match != nil {
+				snapshotUUIDs = append(snapshotUUIDs, s.Match.UUID)
+			}
+		}
+		apiResponse, err = rh.Dao.Rpm.SearchSnapshotRpms(c.Request().Context(), orgId, api.SnapshotSearchRpmRequest{
+			UUIDs:                 snapshotUUIDs,
+			Search:                dataInput.Search,
+			Limit:                 dataInput.Limit,
+			IncludePackageSources: dataInput.IncludePackageSources,
+		})
+	}
+
 	if err != nil {
 		return ce.NewErrorResponse(ce.HttpCodeForDaoError(err), "Error searching RPMs", err.Error())
 	}
@@ -242,7 +275,6 @@ func (rh *RpmHandler) listSnapshotErrata(c echo.Context) error {
 		tangy.ErrataListFilters{Search: snapshotErrataRequest.Search, Type: snapshotErrataRequest.Type, Severity: snapshotErrataRequest.Severity},
 		page,
 	)
-
 	if err != nil {
 		return ce.NewErrorResponse(ce.HttpCodeForDaoError(err), "Error listing Errata", err.Error())
 	}
@@ -324,7 +356,6 @@ func (rh *RpmHandler) listTemplateErrata(c echo.Context) error {
 		tangy.ErrataListFilters{Search: snapshotErrataRequest.Search, Type: snapshotErrataRequest.Type, Severity: snapshotErrataRequest.Severity},
 		page,
 	)
-
 	if err != nil {
 		return ce.NewErrorResponse(ce.HttpCodeForDaoError(err), "Error listing Errata", err.Error())
 	}

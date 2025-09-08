@@ -676,6 +676,29 @@ func (r repositoryConfigDaoImpl) FetchByRepoUuid(ctx context.Context, orgID stri
 	return repo, nil
 }
 
+func (r repositoryConfigDaoImpl) ListByRepoUrls(ctx context.Context, orgID string, repoURLs []string) ([]api.RepositoryResponse, error) {
+	repoConfigs := []models.RepositoryConfiguration{}
+	repo := []api.RepositoryResponse{}
+	cleanedUrls := []string{}
+
+	for _, url := range repoURLs {
+		cleanedUrls = append(cleanedUrls, models.CleanupURL(url))
+	}
+
+	result := r.db.WithContext(ctx).
+		Preload("Repository").Preload("LastSnapshot").Preload("LastSnapshotTask").
+		Joins("Inner join repositories on repositories.uuid = repository_configurations.repository_uuid").
+		Where("Repositories.URL IN (?) AND ORG_ID = ?", cleanedUrls, orgID).
+		Find(&repoConfigs)
+
+	if result.Error != nil {
+		return repo, RepositoryDBErrorToApi(result.Error, &repoUuid)
+	}
+
+	ModelToApiFields(repoConfig, &repo)
+	return repo, nil
+}
+
 func (r repositoryConfigDaoImpl) FetchWithoutOrgID(ctx context.Context, uuid string, includeSoftDel bool) (api.RepositoryResponse, error) {
 	found := models.RepositoryConfiguration{}
 	var repo api.RepositoryResponse
@@ -852,7 +875,8 @@ func (r repositoryConfigDaoImpl) SavePublicRepos(ctx context.Context, urls []str
 	}
 	result := r.db.WithContext(ctx).Clauses(clause.OnConflict{
 		Columns:   []clause.Column{{Name: "url"}, {Name: "origin"}},
-		DoUpdates: clause.AssignmentColumns([]string{"public"})}).Create(&repos)
+		DoUpdates: clause.AssignmentColumns([]string{"public"}),
+	}).Create(&repos)
 	if result.Error != nil {
 		return result.Error
 	}
@@ -1369,7 +1393,8 @@ func (r repositoryConfigDaoImpl) InternalOnly_RefreshPredefinedSnapshotRepo(ctx 
 
 	result := r.db.WithContext(ctx).Clauses(clause.OnConflict{
 		Columns:   []clause.Column{{Name: "url"}, {Name: "origin"}},
-		DoUpdates: clause.AssignmentColumns([]string{"public"})}).Create(&newRepo)
+		DoUpdates: clause.AssignmentColumns([]string{"public"}),
+	}).Create(&newRepo)
 	if result.Error != nil {
 		return nil, result.Error
 	}
@@ -1386,7 +1411,8 @@ func (r repositoryConfigDaoImpl) InternalOnly_RefreshPredefinedSnapshotRepo(ctx 
 	result = r.db.WithContext(ctx).Clauses(clause.OnConflict{
 		Columns:     []clause.Column{{Name: "repository_uuid"}, {Name: "org_id"}},
 		TargetWhere: clause.Where{Exprs: []clause.Expression{clause.Eq{Column: "deleted_at", Value: nil}}},
-		DoUpdates:   clause.AssignmentColumns([]string{"name", "arch", "versions", "gpg_key", "label", "feature_name"})}).
+		DoUpdates:   clause.AssignmentColumns([]string{"name", "arch", "versions", "gpg_key", "label", "feature_name"}),
+	}).
 		Create(&newRepoConfig)
 	if result.Error != nil {
 		return nil, result.Error
