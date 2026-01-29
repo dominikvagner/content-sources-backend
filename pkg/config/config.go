@@ -78,6 +78,7 @@ type FeatureSet struct {
 	CommunityRepos          Feature `mapstructure:"community_repos"`
 	Kessel                  Feature `mapstructure:"kessel"`
 	AllowCustomEPELCreation Feature `mapstructure:"allow_custom_epel_creation"`
+	ExtendedReleaseRepos    Feature `mapstructure:"extended_release_repos"`
 }
 
 type Feature struct {
