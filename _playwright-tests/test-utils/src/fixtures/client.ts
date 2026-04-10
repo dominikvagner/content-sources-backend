@@ -1,13 +1,13 @@
 // Define a fixture to hold the API client
 import { test as oldTest, expect, APIRequestContext, APIResponse } from '@playwright/test';
 import { Configuration, ResponseError, FetchAPI } from '../client';
-import { fileNameToEnvVar, getFileNameFromAuthPath } from 'test-utils/helpers';
+import { envVarForPath } from '../helpers/tokenHelpers';
 
 type WithApiConfig = {
   client: Configuration;
 };
 
-function isString(value: unknown): value is string {
+export function isString(value: unknown): value is string {
   return typeof value === 'string';
 }
 
@@ -15,7 +15,7 @@ function constructHeaders(headers?: HeadersInit, storageState?: string, extraHTT
   const out: Record<string, string> = {};
 
   if (storageState) {
-    const tokenName = fileNameToEnvVar(getFileNameFromAuthPath(storageState));
+    const tokenName = envVarForPath(storageState);
     const token = process.env[tokenName];
     if (!token) {
       throw new Error(
@@ -47,13 +47,15 @@ export const clientTest = oldTest.extend<WithApiConfig>({
   client:
     async ({ extraHTTPHeaders, request, storageState }, use, r) => {
       const pwFetch = (api: APIRequestContext): FetchAPI => async (url, init) => {
-        const storage = storageState ?? r.project.use.storageState;
+        const storagePath = storageState ?? r.project.use.storageState;
+        const storage = isString(storagePath) ? storagePath : undefined;
         const extraHeaders = extraHTTPHeaders ?? r.project.use.extraHTTPHeaders;
+
         const response = await api.fetch(String(url), {
           failOnStatusCode: false,
           ignoreHTTPSErrors: true,
           method: init?.method,
-          headers: constructHeaders(init?.headers, isString(storage) ? storage : undefined, extraHeaders),
+          headers: constructHeaders(init?.headers, storage, extraHeaders),
           data: init?.body,
         });
 

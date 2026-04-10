@@ -1,62 +1,52 @@
-import { test as base, type TestInfo } from '@playwright/test';
+import { test as base } from '@playwright/test';
 import {
-  ensureValidToken,
-  fileNameToEnvVar,
-  getFileNameFromAuthPath,
-  usesIdentityHeaderAuth,
+    ensureValidToken,
+    handleTokenEndpointResponse,
+    usesIdentityHeaderAuth,
 } from '../helpers/tokenHelpers';
-
-/**
- * Get the storageState auth file path from test info
- */
-function getAuthFileFromContext(testInfo: TestInfo): string | null {
-  const project = testInfo.project as { use?: { storageState?: string } };
-  const storageState = project?.use?.storageState;
-  if (storageState && typeof storageState === 'string') {
-    return storageState;
-  }
-  return null;
-}
+import { isString } from './client';
 
 /**
  * Autofixture that automatically refreshes JWT tokens before each test
  * based on the storageState configured for that test.
+ *
+ * Also installs a passive response listener that captures any token refresh
+ * the app wrapper (insights-chrome) triggers during the test, keeping
+ * process.env, the .auth/*.json file, and the live browser context in sync.
  */
-export const tokenRefreshTest = base.extend({
-  page: async ({ page }, use, testInfo) => {
+export const tokenRefreshTest = base.extend<{ tokenRefresh: void }>({
+  tokenRefresh: [async ({ page, storageState }, use, r) => {
     if (usesIdentityHeaderAuth()) {
-      await use(page);
+      await use();
       return;
     }
 
-    const authFile = getAuthFileFromContext(testInfo);
+    const storagePath = storageState ?? r.project.use.storageState;
+    const storage = isString(storagePath) ? storagePath : undefined;
 
-    if (authFile) {
-      const fileName = getFileNameFromAuthPath(authFile);
-      const envVar = fileNameToEnvVar(fileName);
-
-      try {
-        const refreshedToken = await ensureValidToken(page, authFile, 5);
-
-        if (refreshedToken) {
-          process.env[envVar] = refreshedToken;
-          console.log(`[Token Refresh] Refreshed ${envVar}`);
-        }
-      } catch (error) {
-        console.error(`[Token Refresh] Failed to refresh token for ${fileName}:`, error);
-      }
-    } else {
-      try {
-        const refreshedToken = await ensureValidToken(page, undefined, 5);
-        if (refreshedToken) {
-          process.env.ADMIN_TOKEN = refreshedToken;
-          console.log('[Token Refresh] Refreshed ADMIN_TOKEN');
-        }
-      } catch (error) {
-        console.error('[Token Refresh] Failed to refresh default token:', error);
-      }
+    // --- Pre-test proactive refresh ---
+    try {
+      await ensureValidToken(page, storage);
+    } catch (error) {
+      console.error('[Token Refresh] Failed to refresh token:', error);
     }
 
-    await use(page);
-  },
+    // --- Passive response listener for app-initiated token refreshes ---
+    page.on('response', async (response) => {
+      try {
+        if (
+          response.url().includes('/protocol/openid-connect/token') &&
+          response.status() === 200
+        ) {
+          const data = await response.json();
+          if (data?.access_token && data?.id_token && data?.refresh_token && data?.expires_in) {
+            await handleTokenEndpointResponse(data, storage ?? 'ADMIN_TOKEN.json', page);
+            console.log('[Token Intercept] Captured app-initiated token refresh');
+          }
+        }
+      } catch {}
+    });
+
+    await use();
+  }, { auto: true }]
 });
