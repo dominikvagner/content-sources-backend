@@ -7,6 +7,9 @@ package store
 
 import (
 	"context"
+	"time"
+
+	"github.com/google/uuid"
 )
 
 const countAggregates = `-- name: CountAggregates :one
@@ -188,6 +191,60 @@ func (q *Queries) CountByStage(ctx context.Context, arg CountByStageParams) ([]C
 	return items, nil
 }
 
+const getVulnerabilityByID = `-- name: GetVulnerabilityByID :one
+SELECT uuid, vulnerability_id, purl, component_name, component_version, title, cwe, description, severity, cvss, cvss_vector, exploit_tested, reproducer_included, customer_priority, stage, language, complexity, submitted_date, last_updated, embargo, duplicate, ltwwlsupt_ticket_id, created_at, updated_at
+FROM lightwell_vulnerabilities
+WHERE vulnerability_id = $1
+`
+
+func (q *Queries) GetVulnerabilityByID(ctx context.Context, vulnerabilityID string) (LightwellVulnerability, error) {
+	row := q.db.QueryRow(ctx, getVulnerabilityByID, vulnerabilityID)
+	var i LightwellVulnerability
+	err := row.Scan(
+		&i.Uuid,
+		&i.VulnerabilityID,
+		&i.Purl,
+		&i.ComponentName,
+		&i.ComponentVersion,
+		&i.Title,
+		&i.Cwe,
+		&i.Description,
+		&i.Severity,
+		&i.Cvss,
+		&i.CvssVector,
+		&i.ExploitTested,
+		&i.ReproducerIncluded,
+		&i.CustomerPriority,
+		&i.Stage,
+		&i.Language,
+		&i.Complexity,
+		&i.SubmittedDate,
+		&i.LastUpdated,
+		&i.Embargo,
+		&i.Duplicate,
+		&i.LtwwlsuptTicketID,
+		&i.CreatedAt,
+		&i.UpdatedAt,
+	)
+	return i, err
+}
+
+const insertVulnerabilityCustomer = `-- name: InsertVulnerabilityCustomer :exec
+INSERT INTO lightwell_vulnerability_customers (customer_id, vulnerability_uuid)
+VALUES ($1, $2)
+ON CONFLICT DO NOTHING
+`
+
+type InsertVulnerabilityCustomerParams struct {
+	CustomerID        string    `json:"customer_id"`
+	VulnerabilityUuid uuid.UUID `json:"vulnerability_uuid"`
+}
+
+func (q *Queries) InsertVulnerabilityCustomer(ctx context.Context, arg InsertVulnerabilityCustomerParams) error {
+	_, err := q.db.Exec(ctx, insertVulnerabilityCustomer, arg.CustomerID, arg.VulnerabilityUuid)
+	return err
+}
+
 const listCustomerIds = `-- name: ListCustomerIds :many
 SELECT DISTINCT customer_id
 FROM lightwell_vulnerability_customers
@@ -349,4 +406,121 @@ func (q *Queries) ListVulnerabilities(ctx context.Context, arg ListVulnerabiliti
 		return nil, err
 	}
 	return items, nil
+}
+
+const upsertVulnerability = `-- name: UpsertVulnerability :one
+INSERT INTO lightwell_vulnerabilities (
+    uuid, vulnerability_id, purl, component_name, component_version, title, cwe, description,
+    severity, cvss, cvss_vector, exploit_tested, reproducer_included, customer_priority, stage,
+    language, complexity, submitted_date, last_updated, embargo, duplicate, ltwwlsupt_ticket_id
+) VALUES (
+    $1, $2, $3, $4,
+    $5, $6, $7, $8,
+    $9, $10, $11, $12,
+    $13, $14, $15,
+    $16, $17, $18, $19,
+    $20, $21, $22
+)
+ON CONFLICT (vulnerability_id) DO UPDATE SET
+    purl = EXCLUDED.purl,
+    component_name = EXCLUDED.component_name,
+    component_version = EXCLUDED.component_version,
+    title = EXCLUDED.title,
+    cwe = EXCLUDED.cwe,
+    description = EXCLUDED.description,
+    severity = EXCLUDED.severity,
+    cvss = EXCLUDED.cvss,
+    cvss_vector = EXCLUDED.cvss_vector,
+    exploit_tested = EXCLUDED.exploit_tested,
+    reproducer_included = EXCLUDED.reproducer_included,
+    customer_priority = EXCLUDED.customer_priority,
+    stage = EXCLUDED.stage,
+    language = EXCLUDED.language,
+    complexity = EXCLUDED.complexity,
+    submitted_date = EXCLUDED.submitted_date,
+    last_updated = EXCLUDED.last_updated,
+    embargo = EXCLUDED.embargo,
+    duplicate = EXCLUDED.duplicate,
+    ltwwlsupt_ticket_id = EXCLUDED.ltwwlsupt_ticket_id,
+    updated_at = NOW()
+WHERE (
+    lightwell_vulnerabilities.purl, lightwell_vulnerabilities.component_name,
+    lightwell_vulnerabilities.component_version, lightwell_vulnerabilities.title,
+    lightwell_vulnerabilities.cwe, lightwell_vulnerabilities.description,
+    lightwell_vulnerabilities.severity, lightwell_vulnerabilities.cvss,
+    lightwell_vulnerabilities.cvss_vector, lightwell_vulnerabilities.exploit_tested,
+    lightwell_vulnerabilities.reproducer_included, lightwell_vulnerabilities.customer_priority,
+    lightwell_vulnerabilities.stage, lightwell_vulnerabilities.language,
+    lightwell_vulnerabilities.complexity, lightwell_vulnerabilities.submitted_date,
+    lightwell_vulnerabilities.last_updated, lightwell_vulnerabilities.embargo,
+    lightwell_vulnerabilities.duplicate, lightwell_vulnerabilities.ltwwlsupt_ticket_id
+) IS DISTINCT FROM (
+    EXCLUDED.purl, EXCLUDED.component_name, EXCLUDED.component_version, EXCLUDED.title,
+    EXCLUDED.cwe, EXCLUDED.description, EXCLUDED.severity, EXCLUDED.cvss,
+    EXCLUDED.cvss_vector, EXCLUDED.exploit_tested, EXCLUDED.reproducer_included,
+    EXCLUDED.customer_priority, EXCLUDED.stage, EXCLUDED.language, EXCLUDED.complexity,
+    EXCLUDED.submitted_date, EXCLUDED.last_updated, EXCLUDED.embargo, EXCLUDED.duplicate,
+    EXCLUDED.ltwwlsupt_ticket_id
+)
+RETURNING uuid, (xmax = 0) AS inserted
+`
+
+type UpsertVulnerabilityParams struct {
+	Uuid               uuid.UUID `json:"uuid"`
+	VulnerabilityID    string    `json:"vulnerability_id"`
+	Purl               *string   `json:"purl"`
+	ComponentName      string    `json:"component_name"`
+	ComponentVersion   string    `json:"component_version"`
+	Title              *string   `json:"title"`
+	Cwe                *string   `json:"cwe"`
+	Description        *string   `json:"description"`
+	Severity           string    `json:"severity"`
+	Cvss               *float64  `json:"cvss"`
+	CvssVector         *string   `json:"cvss_vector"`
+	ExploitTested      bool      `json:"exploit_tested"`
+	ReproducerIncluded bool      `json:"reproducer_included"`
+	CustomerPriority   *string   `json:"customer_priority"`
+	Stage              string    `json:"stage"`
+	Language           *string   `json:"language"`
+	Complexity         string    `json:"complexity"`
+	SubmittedDate      time.Time `json:"submitted_date"`
+	LastUpdated        time.Time `json:"last_updated"`
+	Embargo            bool      `json:"embargo"`
+	Duplicate          bool      `json:"duplicate"`
+	LtwwlsuptTicketID  string    `json:"ltwwlsupt_ticket_id"`
+}
+
+type UpsertVulnerabilityRow struct {
+	Uuid     uuid.UUID `json:"uuid"`
+	Inserted bool      `json:"inserted"`
+}
+
+func (q *Queries) UpsertVulnerability(ctx context.Context, arg UpsertVulnerabilityParams) (UpsertVulnerabilityRow, error) {
+	row := q.db.QueryRow(ctx, upsertVulnerability,
+		arg.Uuid,
+		arg.VulnerabilityID,
+		arg.Purl,
+		arg.ComponentName,
+		arg.ComponentVersion,
+		arg.Title,
+		arg.Cwe,
+		arg.Description,
+		arg.Severity,
+		arg.Cvss,
+		arg.CvssVector,
+		arg.ExploitTested,
+		arg.ReproducerIncluded,
+		arg.CustomerPriority,
+		arg.Stage,
+		arg.Language,
+		arg.Complexity,
+		arg.SubmittedDate,
+		arg.LastUpdated,
+		arg.Embargo,
+		arg.Duplicate,
+		arg.LtwwlsuptTicketID,
+	)
+	var i UpsertVulnerabilityRow
+	err := row.Scan(&i.Uuid, &i.Inserted)
+	return i, err
 }

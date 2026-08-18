@@ -134,6 +134,59 @@ func textSearch(value string) *string {
 	return &value
 }
 
+func TestStore_UpsertVulnerabilityIsIdempotent(t *testing.T) {
+	ctx, tx, q := beginTestTx(t)
+	defer rollbackTestTx(t, tx)
+
+	params := store.UpsertVulnerabilityParams{
+		Uuid:               uuid.New(),
+		VulnerabilityID:    fmt.Sprintf("LWL-UPSERT-%d", time.Now().UnixNano()),
+		ComponentName:      "component",
+		ComponentVersion:   "1.0",
+		Severity:           "Important",
+		ExploitTested:      false,
+		ReproducerIncluded: false,
+		Stage:              "Submitted",
+		Complexity:         "",
+		SubmittedDate:      time.Now().UTC(),
+		LastUpdated:        time.Now().UTC().Truncate(time.Second),
+		Embargo:            false,
+		Duplicate:          false,
+		LtwwlsuptTicketID:  "EPIC-1",
+	}
+
+	inserted, err := q.UpsertVulnerability(ctx, params)
+	require.NoError(t, err)
+	assert.True(t, inserted.Inserted)
+
+	before, err := q.GetVulnerabilityByID(ctx, params.VulnerabilityID)
+	require.NoError(t, err)
+	_, err = q.UpsertVulnerability(ctx, params)
+	require.ErrorIs(t, err, pgx.ErrNoRows)
+	after, err := q.GetVulnerabilityByID(ctx, params.VulnerabilityID)
+	require.NoError(t, err)
+	assert.Equal(t, before.UpdatedAt, after.UpdatedAt)
+
+	params.Stage = "Classified"
+	updated, err := q.UpsertVulnerability(ctx, params)
+	require.NoError(t, err)
+	assert.False(t, updated.Inserted)
+	after, err = q.GetVulnerabilityByID(ctx, params.VulnerabilityID)
+	require.NoError(t, err)
+	assert.Equal(t, "Classified", after.Stage)
+	assert.Equal(t, inserted.Uuid, after.Uuid)
+
+	customer := store.InsertVulnerabilityCustomerParams{CustomerID: "customer-1", VulnerabilityUuid: inserted.Uuid}
+	require.NoError(t, q.InsertVulnerabilityCustomer(ctx, customer))
+	require.NoError(t, q.InsertVulnerabilityCustomer(ctx, customer))
+	var count int
+	require.NoError(t, tx.QueryRow(ctx,
+		`SELECT COUNT(*) FROM lightwell_vulnerability_customers WHERE customer_id = $1 AND vulnerability_uuid = $2`,
+		customer.CustomerID, customer.VulnerabilityUuid,
+	).Scan(&count))
+	assert.Equal(t, 1, count)
+}
+
 func TestStore_CustomerScopingAndFilters(t *testing.T) {
 	ctx, tx, q := beginTestTx(t)
 	defer rollbackTestTx(t, tx)
